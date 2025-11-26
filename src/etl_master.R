@@ -3,6 +3,7 @@ library(readxl)
 library(DBI)
 library(RPostgres)
 library(janitor)
+library(writexl)
 
 # --- 1. CONEXIÓN A SUPABASE ---
 con <- dbConnect(
@@ -63,10 +64,9 @@ df_clean <- df_raw %>%
     uso_01_horas_dia          = matches("cuantas_horas_pasas"),
     uso_02_veces_revisa_clase = matches("cuantas_veces_por_hora"),
     
-    # --- AQUÍ ESTABA EL ERROR (CORREGIDO) ---
-    # Usamos starts_with para asegurar que sea la pregunta principal y no la de ansiedad
-    uso_03_llamadas = matches("^llamadas$"), # El ^ asegura que sea exacto
-    uso_03_mensajes = starts_with("mensajes_de_texto"), # <--- CORREGIDO
+    # Usos Específicos (Checkboxes)
+    uso_03_llamadas = matches("^llamadas$"),
+    uso_03_mensajes = starts_with("mensajes_de_texto"),
     uso_03_redes    = matches("^redes_sociales$"),
     uso_03_juegos   = matches("^juegos$"),
     uso_03_lectura  = matches("lectura_estudiar"),
@@ -87,17 +87,45 @@ df_clean <- df_raw %>%
     uso_12_ansiedad_sin_celular= matches("invariablemente_ansioso"),
     uso_13_incomodidad_sin_celular = matches("se_siente_incomodo")
   ) %>%
-  mutate(across(everything(), convertir_si_no))
+  # 1. Convertir textos de Sí/No a Booleanos
+  mutate(across(everything(), convertir_si_no)) %>%
+  
+  # 2. --- CORRECCIÓN DE TIPOS NUMÉRICOS (Explicit Casting) ---
+  mutate(
+    # Variables ENTERAS (Sin decimales)
+    across(c(demo_03_edad, 
+             demo_04_semestre, 
+             uso_04_distraccion_redes,
+             uso_05_pierde_hilo, 
+             uso_06_herramienta_acad, 
+             uso_07_revisar_vibracion), as.integer),
+    
+    # Variables NUMÉRICAS (Pueden tener decimales o ser montos grandes)
+    across(c(demo_07_ingresos, 
+             rend_01_promedio, 
+             uso_01_horas_dia, 
+             uso_02_veces_revisa_clase), as.numeric)
+  )
 
 print(paste("✨ Datos limpios:", nrow(df_clean), "filas."))
 
-# --- 4. CARGA A SUPABASE ---
+# --- 4. CARGA A SUPABASE (Protegida) ---
 tryCatch({
+  # TRUNCATE vacía la tabla pero mantiene la estructura (UUIDs, tipos de datos)
+  dbExecute(con, "TRUNCATE TABLE encuesta_estudiantes;")
+  print("🧹 Tabla limpiada (TRUNCATE) para evitar duplicados.")
+  
+  # Insertamos los datos nuevos
   dbWriteTable(con, "encuesta_estudiantes", df_clean, append = TRUE, row.names = FALSE)
-  print("🚀 ¡Datos del EXCEL subidos exitosamente a Supabase!")
+  print("🚀 ¡Datos actualizados en Supabase!")
 }, error = function(e) {
-  print("❌ Error subiendo datos:")
+  print("❌ Error en base de datos:")
   print(e)
 })
 
 dbDisconnect(con)
+
+# --- 5. EXPORTAR SNAPSHOT PARA EQUIPO ---
+ruta_salida <- "output/datos_limpios_para_equipo.xlsx"
+write_xlsx(df_clean, ruta_salida)
+print(paste("📦 Snapshot Excel generado en:", ruta_salida))
