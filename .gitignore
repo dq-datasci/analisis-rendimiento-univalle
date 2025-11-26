@@ -1,0 +1,16 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.DS_Store
+
+# Archivos de renv (Mantenemos el lockfile, ignoramos la librería pesada)
+library/
+python/
+
+# Si el repo será privado, puedes comentar la siguiente línea con #
+data/*.xlsx
+
+# Archivos de entorno (Credenciales de Supabase)
+.env
+.Renviron
