@@ -87,6 +87,16 @@ df_clean <- df_raw %>%
     uso_12_ansiedad_sin_celular= matches("invariablemente_ansioso"),
     uso_13_incomodidad_sin_celular = matches("se_siente_incomodo")
   ) %>%
+  
+  # --- CORRECCIÓN DE ERRORES DE TYPO ---
+  mutate(demo_02_carrera = case_when(
+    # Patrón exacto del error -> Corrección
+    demo_02_carrera == "Ingeniería en Ciencia de Datos e Inteligenica de Negocios" ~ "Ingeniería en Ciencia de Datos e Inteligencia de Negocios",
+    demo_02_carrera == "Fisioterapua y Kinesiología" ~ "Fisioterapia y Kinesiología",
+    # Mantener el resto igual
+    TRUE ~ demo_02_carrera
+  )) %>%
+  
   # 1. Convertir textos de Sí/No a Booleanos
   mutate(across(everything(), convertir_si_no)) %>%
   
